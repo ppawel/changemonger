@@ -33,21 +33,21 @@ def features(element):
 def node(id, version = None):
     """Gets a node from the OSM API and returns it as a complete element"""
     data = osmapi.getNode(id, version)
-    xml = et.XML(data.encode('utf-8'))
+    xml = et.XML(data)
     root = xml.find('node')
     return parser.parseNode(root)
 
 def way(id, version = None):
     """Gets a way from the OSM API and returns it as a complete element"""
     data = osmapi.getWay(id, version)
-    xml = et.XML(data.encode('utf-8'))
+    xml = et.XML(data)
     root = xml.find('way')
     return parser.parseWay(root)
 
 def relation(id, version = None):
     """Gets a relation from the OSM API and returns it as a complete element"""
     data = osmapi.getRelation(id, version)
-    xml = et.XML(data.encode('utf-8'))
+    xml = et.XML(data)
     root = xml.find('relation')
     return parser.parseRelation(root)
 
@@ -58,12 +58,12 @@ def changeset(id):
     """
     # First get the changeset metadata
     data = osmapi.getChangeset(id)
-    xml = et.XML(data.encode('utf-8'))
+    xml = et.XML(data)
     root = xml.find('changeset')
     changeset = parser.parseChangeset(root)
     # Now get the OSM change for it
     data = osmapi.getChange(id)
-    xml = et.XML(data.encode('utf-8'))
+    xml = et.XML(data)
     change = parser.parseChange(xml)
     changeset['actions'] = change
     # Now collect all the objects in this changeset for processing
@@ -106,7 +106,7 @@ def changeset_sentence(cset):
         action = 'edited'
 
     for i in cset['actions']:
-        eles.extend(i[1])    
+        eles.extend(i[1])
     ele_features = zip(eles, db.matchEach(eles))
     sorted_ef = elements.sort_by_num_features(ele_features)
     grouped_features = elements.feature_grouper(sorted_ef)

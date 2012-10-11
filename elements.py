@@ -106,7 +106,7 @@ def grouped_to_english(coll):
         if len(elements) > 1:
             l.append("%s %s" % (p.number_to_words(len(elements)),
                                 feature.plural))
-        else:            
+        else:
             l.append(display_name(elements[0], feature))
     return p.join(l)
 
@@ -245,7 +245,7 @@ def add_remote_ways(coll):
         logging.debug("Node %s has no remote ways or relations. Retrieving." %
                       str(node['id']))
         data = osmapi.getWaysforNode(node['id'])
-        xml = et.XML(data.encode('utf-8'))
+        xml = et.XML(data)
         ways = [parser.parseWay(way) for way in xml.findall('way')]
         for way in ways:
             logging.debug("Adding new way %s to collection" % way['id'])
@@ -277,7 +277,7 @@ def add_remote_relations(coll):
         if ele['tags'] or ele.get('_ways') or ele.get('_relations'):
             continue
         data = osmapi.getRelationsforElement(ele['type'], ele['id'])
-        xml = et.XML(data.encode('utf-8'))
+        xml = et.XML(data)
         rels = [parser.parseRelation(rel) for rel in xml.findall('relation')]
         for rel in rels:
             logging.debug("Adding relation %s to collection" % str(rel['id']))

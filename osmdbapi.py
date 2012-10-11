@@ -17,27 +17,16 @@
 """Provides a simple abstraction against the OSM API"""
 """Operations are implemented using PostGIS snapshot schema database instead of public API calls"""
 
-import os.path
-import sys
-
 import psycopg2
 import psycopg2.extensions
 import psycopg2.extras
 
-import requests
-import requests_cache
-
-rs = requests.session(headers={'user-agent': 'changemonger/0.0.1'})
-requests_cache.configure('osm_cache')
-
-server = 'api.openstreetmap.org'
-
 import logging
-from xml.dom.minidom import getDOMImplementation
-
-domimpl = getDOMImplementation()
 
 logging.basicConfig(level=logging.DEBUG)
+
+# Magic directory that contains OsmChange files named <changeset_id>.osc - one changeset per file.
+CHANGESETS_DIR = '/home/ppawel/src/changesets/'
 
 try:
     dbconn = psycopg2.connect("dbname='osmdb' user='ppawel' host='localhost' password='aa'")
@@ -78,20 +67,14 @@ def getRelation(id, version = None):
     return r.content
 
 def getChangeset(id):
-    id = str(id)
-    url = "http://%s/api/0.6/changeset/%s" % (server, id)
-    logging.debug("Retrieving %s for changeset %s metadata" % (
-        url, id))
-    r = rs.get(url)
-    r.raise_for_status()
-    return r.content
+    return createChangesetXml(id)
 
 def getChange(id):
-    return open(sys.argv[1]).read()
+    return open(CHANGESETS_DIR + id + ".osc").read()
 
 def getWaysforNode(id):
     id = str(id)
-    logging.debug("Retrieving node %s version %s ways" % (id, version))
+    logging.debug("Retrieving node %s ways" % id)
     dbcursor.execute("SELECT * FROM ways w INNER JOIN way_nodes wn ON (wn.way_id = w.id) WHERE wn.node_id = %s ORDER BY w.id" % id)
     rows = dbcursor.fetchall()
     return createWayXml(rows)
@@ -106,6 +89,10 @@ def getRelationsforElement(type, id):
     return r.content
 
 ## Caution: XML handling! Not pretty!
+
+from xml.dom.minidom import getDOMImplementation
+
+domimpl = getDOMImplementation()
 
 def createOsmDocument():
     return domimpl.createDocument(None, "osm", None)
@@ -126,28 +113,39 @@ def createNodeXml(node_row):
 
 def createWayXml(way_rows):
     newdoc = createOsmDocument()
-    appendWayXml(newdoc.documentElement, way_rows)
+    appendWayXml(newdoc, newdoc.documentElement, way_rows)
     return newdoc.toprettyxml(encoding = 'utf-8')
 
 def createNodeWaysXml(way_rows):
     newdoc = createOsmDocument()
-    appendWayXml(newdoc.documentElement, way_rows)
+    appendWayXml(newdoc, newdoc.documentElement, way_rows)
     return newdoc.toprettyxml(encoding = 'utf-8')
 
-def appendWayXml(el, way_rows):
-    way_el = newdoc.createElement('way')
+def createChangesetXml(id):
+    newdoc = createOsmDocument()
+    changeset_el = newdoc.createElement('changeset')
+    changeset_el.setAttribute('id', str(id))
+    changeset_el.setAttribute('uid', str(1234))
+    changeset_el.setAttribute('user', str('abc'))
+    newdoc.documentElement.appendChild(changeset_el)
+    return newdoc.toprettyxml(encoding = 'utf-8')
+
+def appendWayXml(doc, el, way_rows):
+    if len(way_rows) == 0:
+      return
+
+    way_el = doc.createElement('way')
     way_el.setAttribute('id', str(way_rows[0]['id']))
 
     for node in way_rows:
-        node_el = newdoc.createElement('nd')
+        node_el = doc.createElement('nd')
         node_el.setAttribute('ref', str(node['id']))
         way_el.appendChild(node_el)
 
     for k, v in way_rows[0]['tags'].items():
-        tag_el = newdoc.createElement('tag')
+        tag_el = doc.createElement('tag')
         tag_el.setAttribute('k', k)
         tag_el.setAttribute('v', v)
         way_el.appendChild(tag_el)
 
     el.appendChild(way_el)
-    return newdoc.toprettyxml(encoding = 'utf-8')

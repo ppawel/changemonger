@@ -25,7 +25,6 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
-# Magic directory that contains OsmChange files named <changeset_id>.osc - one changeset per file.
 CHANGESETS_DIR = '/home/ppawel/src/changesets/'
 
 try:
@@ -56,21 +55,16 @@ def getWay(id, version = None):
 
 def getRelation(id, version = None):
     id = str(id)
-    if version:
-        url = "http://%s/api/0.6/relation/%s/%s" % (server, id, str(version))
-    else:
-        url = "http://%s/api/0.6/relation/%s" % (server, id)
-    logging.debug("Retrieving %s for relation %s version %s" % (
-        url, id, version))
-    r = rs.get(url)
-    r.raise_for_status()
-    return r.content
+    logging.debug("Retrieving relation %s version %s" % (id, version))
+    dbcursor.execute("SELECT * FROM relations r INNER JOIN relation_members rm ON (rm.relation_id = r.id) WHERE r.id = %s" % id)
+    rows = dbcursor.fetchall()
+    return createRelationXml(rows)
 
 def getChangeset(id):
     return createChangesetXml(id)
 
 def getChange(id):
-    return open(CHANGESETS_DIR + id + ".osc").read()
+    return open("/tmp/_" + str(id) + ".osc").read()
 
 def getWaysforNode(id):
     id = str(id)
@@ -80,13 +74,11 @@ def getWaysforNode(id):
     return createWayXml(rows)
 
 def getRelationsforElement(type, id):
-    type = str(type)
     id = str(id)
-    url = "http://%s/api/0.6/%s/%s/relations" % (server, type, id)
-    logging.debug("Retrieving %s for %s %s relations" % (url, type, id))
-    r = rs.get(url)
-    r.raise_for_status()
-    return r.content
+    logging.debug("Retrieving relations for %s %s" % (type, str(id)))
+    dbcursor.execute("SELECT * FROM relations r INNER JOIN relation_members rm ON (rm.relation_id = r.id) WHERE rm.member_id = %s ORDER BY rm.relation_id, rm.member_type, rm.member_id" % id)
+    rows = dbcursor.fetchall()
+    return createRelationsXml(rows)
 
 ## Caution: XML handling! Not pretty!
 
@@ -121,6 +113,20 @@ def createNodeWaysXml(way_rows):
     appendWayXml(newdoc, newdoc.documentElement, way_rows)
     return newdoc.toprettyxml(encoding = 'utf-8')
 
+def createRelationsXml(relation_rows):
+    newdoc = createOsmDocument()
+
+    if len(relation_rows) == 0:
+      return newdoc.toprettyxml(encoding = 'utf-8')
+
+    id = relation_rows[0]['relation_id']
+
+    for row in relation_rows:
+      if id != row['relation_id']:
+        appendWayXml(newdoc, newdoc.documentElement, way_rows)
+    print newdoc.toprettyxml(encoding = 'utf-8')
+    return newdoc.toprettyxml(encoding = 'utf-8')
+
 def createChangesetXml(id):
     newdoc = createOsmDocument()
     changeset_el = newdoc.createElement('changeset')
@@ -132,6 +138,26 @@ def createChangesetXml(id):
 
 def appendWayXml(doc, el, way_rows):
     if len(way_rows) == 0:
+      return
+
+    way_el = doc.createElement('way')
+    way_el.setAttribute('id', str(way_rows[0]['id']))
+
+    for node in way_rows:
+        node_el = doc.createElement('nd')
+        node_el.setAttribute('ref', str(node['id']))
+        way_el.appendChild(node_el)
+
+    for k, v in way_rows[0]['tags'].items():
+        tag_el = doc.createElement('tag')
+        tag_el.setAttribute('k', k)
+        tag_el.setAttribute('v', v)
+        way_el.appendChild(tag_el)
+
+    el.appendChild(way_el)
+
+def appendRelationXml(doc, el, relation_rows):
+    if len(relation_rows) == 0:
       return
 
     way_el = doc.createElement('way')

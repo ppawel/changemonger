@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as et
 from flask import abort
 
-import osmapi
+import osmdbapi as osmapi
 import parser
 import requests
 
@@ -19,7 +19,7 @@ def get_node_or_404(id, version = None):
         return r
     except requests.exceptions.HTTPError, msg:
         abort(401, "Error retrieving node %s: %s" % (str(id), msg))
-            
+
 def get_way_or_404(id, version = None):
     try:
         return changemonger.way(id, version)
@@ -52,7 +52,7 @@ def grouped_to_english(coll):
         if len(elements) > 1:
             l.append("%s %s" % (p.number_to_words(len(elements)),
                                 feature.plural))
-        else:            
+        else:
             l.append(elements.display_name(elements[0], feature))
     return p.join(l)
 
